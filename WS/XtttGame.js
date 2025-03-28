@@ -92,6 +92,15 @@ function onClientDisconnect() {
 
 };
 
+function onSendChatMessage(message) {
+  util.log(`Message received: ${JSON.stringify(message)}`);
+
+  // send to all clients, including the sender
+  players.forEach((player) => {
+    io.to(player.sockid).emit("receive_chat_message", message);
+  });
+}
+
 // ----	--------------------------------------------	--------------------------------------------	
 // ----	--------------------------------------------	--------------------------------------------	
 
@@ -108,4 +117,5 @@ set_game_sock_handlers = function (socket) {
 
 	socket.on("disconnect", onClientDisconnect);
 
+  socket.on("send_chat_message", onSendChatMessage);
 };

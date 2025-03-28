@@ -6,6 +6,7 @@ import TweenMax from 'gsap'
 
 import rand_arr_elem from '../../helpers/rand_arr_elem'
 import rand_to_fro from '../../helpers/rand_to_fro'
+import GameChat from './GameChat';
 
 export default class SetName extends Component {
 
@@ -40,7 +41,8 @@ export default class SetName extends Component {
 				cell_vals: {},
 				next_turn_ply: true,
 				game_play: false,
-				game_stat: 'Connecting'
+				game_stat: 'Connecting',
+				chat_messages: [],
 			}
 		}
 	}
@@ -56,8 +58,9 @@ export default class SetName extends Component {
 //	------------------------	------------------------	------------------------
 
 	sock_start () {
-
-		this.socket = io(app.settings.ws_conf.loc.SOCKET__io.u);
+		// `app.settings.ws_conf.loc.SOCKET__io.u` isn't being read from ws_conf.xml in development
+		// so using a hard-coded string for simplicity's sake
+		this.socket = io('http://localhost:3001');
 
 		this.socket.on('connect', function(data) { 
 			// console.log('socket connected', data)
@@ -80,8 +83,10 @@ export default class SetName extends Component {
 
 		this.socket.on('opp_turn', this.turn_opp_live.bind(this));
 
-
-
+    this.socket.on(
+      'receive_chat_message',
+      this.receive_chat_message.bind(this)
+    );
 	}
 
 //	------------------------	------------------------	------------------------
@@ -91,6 +96,22 @@ export default class SetName extends Component {
 
 		this.socket && this.socket.disconnect();
 	}
+
+
+  receive_chat_message(data) {
+    if (this.props.game_type !== 'live') {
+      return;
+    }
+
+    // configured babel doesn't support spread operator, so use Object.assign
+    const message = Object.assign(
+      {
+        me: this.socket.id === data.player.id,
+      },
+      data
+    );
+    this.setState({ chat_messages: this.state.chat_messages.concat(message) });
+  }
 
 //	------------------------	------------------------	------------------------
 
@@ -119,26 +140,34 @@ export default class SetName extends Component {
 					{this.state.game_play && <div id="game_turn_msg">{this.state.next_turn_ply ? 'Your turn' : 'Opponent turn'}</div>}
 				</div>
 
-				<div id="game_board">
-					<table>
-					<tbody>
-						<tr>
-							<td id='game_board-c1' ref='c1' onClick={this.click_cell.bind(this)}> {this.cell_cont('c1')} </td>
-							<td id='game_board-c2' ref='c2' onClick={this.click_cell.bind(this)} className="vbrd"> {this.cell_cont('c2')} </td>
-							<td id='game_board-c3' ref='c3' onClick={this.click_cell.bind(this)}> {this.cell_cont('c3')} </td>
-						</tr>
-						<tr>
-							<td id='game_board-c4' ref='c4' onClick={this.click_cell.bind(this)} className="hbrd"> {this.cell_cont('c4')} </td>
-							<td id='game_board-c5' ref='c5' onClick={this.click_cell.bind(this)} className="vbrd hbrd"> {this.cell_cont('c5')} </td>
-							<td id='game_board-c6' ref='c6' onClick={this.click_cell.bind(this)} className="hbrd"> {this.cell_cont('c6')} </td>
-						</tr>
-						<tr>
-							<td id='game_board-c7' ref='c7' onClick={this.click_cell.bind(this)}> {this.cell_cont('c7')} </td>
-							<td id='game_board-c8' ref='c8' onClick={this.click_cell.bind(this)} className="vbrd"> {this.cell_cont('c8')} </td>
-							<td id='game_board-c9' ref='c9' onClick={this.click_cell.bind(this)}> {this.cell_cont('c9')} </td>
-						</tr>
-					</tbody>
-					</table>
+        <div className="game_board_chat">
+					<div id="game_board">
+						<table>
+						<tbody>
+							<tr>
+								<td id='game_board-c1' ref='c1' onClick={this.click_cell.bind(this)}> {this.cell_cont('c1')} </td>
+								<td id='game_board-c2' ref='c2' onClick={this.click_cell.bind(this)} className="vbrd"> {this.cell_cont('c2')} </td>
+								<td id='game_board-c3' ref='c3' onClick={this.click_cell.bind(this)}> {this.cell_cont('c3')} </td>
+							</tr>
+							<tr>
+								<td id='game_board-c4' ref='c4' onClick={this.click_cell.bind(this)} className="hbrd"> {this.cell_cont('c4')} </td>
+								<td id='game_board-c5' ref='c5' onClick={this.click_cell.bind(this)} className="vbrd hbrd"> {this.cell_cont('c5')} </td>
+								<td id='game_board-c6' ref='c6' onClick={this.click_cell.bind(this)} className="hbrd"> {this.cell_cont('c6')} </td>
+							</tr>
+							<tr>
+								<td id='game_board-c7' ref='c7' onClick={this.click_cell.bind(this)}> {this.cell_cont('c7')} </td>
+								<td id='game_board-c8' ref='c8' onClick={this.click_cell.bind(this)} className="vbrd"> {this.cell_cont('c8')} </td>
+								<td id='game_board-c9' ref='c9' onClick={this.click_cell.bind(this)}> {this.cell_cont('c9')} </td>
+							</tr>
+						</tbody>
+						</table>
+					</div>
+
+					{this.props.game_type === 'live' && 
+						<GameChat
+            	messages={this.state.chat_messages}
+            	onSend={this.send_message.bind(this)}
+          	/>}
 				</div>
 
 				<button type='submit' onClick={this.end_game.bind(this)} className='button'><span>End Game <span className='fa fa-caret-right'></span></span></button>
@@ -338,6 +367,16 @@ export default class SetName extends Component {
 		this.props.onEndGame()
 	}
 
-
+  send_message(message) {
+    this.socket.emit(
+      'send_chat_message',
+      Object.assign(
+        {
+          player: { id: this.socket.id, name: app.settings.curr_user.name },
+        },
+        message
+      )
+    );
+  }
 
 }
